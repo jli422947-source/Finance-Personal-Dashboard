@@ -206,40 +206,71 @@ def top_spending_categories(df: pd.DataFrame, top_n: int = 5, dark: bool = True)
 
 # ── Budget Progress ───────────────────────────────────────────────────────────
 
-def budget_vs_actual_bar(budgets_df: pd.DataFrame, expenses_df: pd.DataFrame,
-                         dark: bool = True) -> go.Figure:
+def budget_vs_actual_bar(
+    budgets_df: pd.DataFrame,
+    expenses_df: pd.DataFrame,
+    dark: bool = True,
+) -> go.Figure:
     """Grouped bar comparing budgeted vs actual spend per category."""
+
     if budgets_df.empty:
         fig = go.Figure()
-        fig.update_layout(**_base_layout(dark), title="No budget data set")
+        fig.update_layout(
+            **_base_layout(dark),
+            title="No budget data set",
+        )
         return fig
 
-    # Merge
-if expenses_df.empty or "category" not in expenses_df.columns:
-    actual = pd.DataFrame(columns=["category", "actual"])
-elif "total" in expenses_df.columns:
-    actual = expenses_df[["category", "total"]].rename(
-        columns={"total": "actual"}
-    )
-elif "amount" in expenses_df.columns:
-    actual = (
-        expenses_df.groupby("category")["amount"]
-        .sum()
-        .reset_index()
-        .rename(columns={"amount": "actual"})
-    )
-else:
-    actual = pd.DataFrame(columns=["category", "actual"])
-    merged = budgets_df.merge(actual, on="category", how="left").fillna(0)
+    # Prepare actual expenses by category.
+    if (
+        expenses_df.empty
+        or "category" not in expenses_df.columns
+    ):
+        actual = pd.DataFrame(
+            columns=["category", "actual"]
+        )
+    elif "total" in expenses_df.columns:
+        actual = expenses_df[
+            ["category", "total"]
+        ].copy()
+        actual = actual.rename(
+            columns={"total": "actual"}
+        )
+        actual = actual.groupby(
+            "category", as_index=False
+        )["actual"].sum()
+    elif "amount" in expenses_df.columns:
+        actual = (
+            expenses_df.groupby("category")["amount"]
+            .sum()
+            .reset_index()
+            .rename(columns={"amount": "actual"})
+        )
+    else:
+        actual = pd.DataFrame(
+            columns=["category", "actual"]
+        )
+
+    merged = budgets_df.merge(
+        actual,
+        on="category",
+        how="left",
+    ).fillna({"actual": 0})
 
     fig = go.Figure()
+
     fig.add_trace(go.Bar(
-        name="Budget", x=merged["category"], y=merged["amount"],
+        name="Budget",
+        x=merged["category"],
+        y=merged["amount"],
         marker_color=CYAN,
         hovertemplate="Budget: $%{y:,.2f}<extra></extra>",
     ))
+
     fig.add_trace(go.Bar(
-        name="Actual", x=merged["category"], y=merged["actual"],
+        name="Actual",
+        x=merged["category"],
+        y=merged["actual"],
         marker_color=PINK,
         hovertemplate="Actual: $%{y:,.2f}<extra></extra>",
     ))
@@ -247,13 +278,17 @@ else:
     layout = _base_layout(dark)
     layout["xaxis"]["title"] = "Category"
     layout["yaxis"]["title"] = "Amount ($)"
+
     fig.update_layout(
         **layout,
-        title=dict(text="Budget vs Actual Spending", font=dict(size=16)),
+        title=dict(
+            text="Budget vs Actual Spending",
+            font=dict(size=16),
+        ),
         barmode="group",
     )
-    return fig
 
+    return fig
 
 # ── Income Sources Pie ────────────────────────────────────────────────────────
 
