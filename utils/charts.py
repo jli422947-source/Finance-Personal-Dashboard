@@ -59,7 +59,7 @@ def expense_pie_chart(df: pd.DataFrame, dark: bool = True) -> go.Figure:
         hovertemplate="<b>%{label}</b><br>$%{value:,.2f}<br>%{percent}<extra></extra>",
     ))
 
-     layout = _base_layout(dark)
+    layout = _base_layout(dark)
     layout["legend"] = dict(
         orientation="v",
         x=1.0,
