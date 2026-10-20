@@ -215,8 +215,21 @@ def budget_vs_actual_bar(budgets_df: pd.DataFrame, expenses_df: pd.DataFrame,
         return fig
 
     # Merge
-    actual = expenses_df.groupby("category")["amount"].sum().reset_index()
-    actual.columns = ["category", "actual"]
+if expenses_df.empty or "category" not in expenses_df.columns:
+    actual = pd.DataFrame(columns=["category", "actual"])
+elif "total" in expenses_df.columns:
+    actual = expenses_df[["category", "total"]].rename(
+        columns={"total": "actual"}
+    )
+elif "amount" in expenses_df.columns:
+    actual = (
+        expenses_df.groupby("category")["amount"]
+        .sum()
+        .reset_index()
+        .rename(columns={"amount": "actual"})
+    )
+else:
+    actual = pd.DataFrame(columns=["category", "actual"])
     merged = budgets_df.merge(actual, on="category", how="left").fillna(0)
 
     fig = go.Figure()
