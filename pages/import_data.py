@@ -67,21 +67,28 @@ def render(dark=True):
     income_keys = set()
     expense_keys = set()
 
+    def normalized_date(value):
+        parsed = pd.to_datetime(value, errors="coerce")
+        return parsed.strftime("%Y-%m-%d") if not pd.isna(parsed) else str(value).strip()
+
     if not old_income.empty:
         income_keys = {
-            (str(row["date"]), str(row["source"]), round(float(row["amount"]), 2), str(row.get("notes", "") or ""))
+            (normalized_date(row["date"]), str(row["source"]).strip(),
+             round(float(row["amount"]), 2), str(row.get("notes", "") or "").strip())
             for _, row in old_income.iterrows()
         }
     if not old_expenses.empty:
         expense_keys = {
-            (str(row["date"]), str(row["category"]), round(float(row["amount"]), 2), str(row.get("description", "") or ""))
+            (normalized_date(row["date"]), str(row["category"]).strip(),
+             round(float(row["amount"]), 2), str(row.get("description", "") or "").strip())
             for _, row in old_expenses.iterrows()
         }
 
     new_rows = []
     skipped = 0
     for _, row in df.iterrows():
-        key = (row["date"], row["category"], round(float(row["amount"]), 2), row["description"])
+        key = (normalized_date(row["date"]), row["category"].strip(),
+               round(float(row["amount"]), 2), row["description"].strip())
         existing = income_keys if row["type"] == "income" else expense_keys
         if key in existing:
             skipped += 1
