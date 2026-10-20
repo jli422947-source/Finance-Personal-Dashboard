@@ -59,11 +59,17 @@ def expense_pie_chart(df: pd.DataFrame, dark: bool = True) -> go.Figure:
         hovertemplate="<b>%{label}</b><br>$%{value:,.2f}<br>%{percent}<extra></extra>",
     ))
 
+     layout = _base_layout(dark)
+    layout["legend"] = dict(
+        orientation="v",
+        x=1.0,
+        y=0.5,
+    )
+
     fig.update_layout(
-        **_base_layout(dark),
+        **layout,
         title=dict(text="Expense Distribution", font=dict(size=16)),
         showlegend=True,
-        legend=dict(orientation="v", x=1.0, y=0.5),
     )
     # Add center annotation
     total = df["total"].sum()
