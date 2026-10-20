@@ -122,7 +122,12 @@ def _render_track_progress(dark: bool):
     actual_map = dict(zip(expenses_df["category"], expenses_df["total"])) if not expenses_df.empty else {}
 
     total_budget = budgets_df["amount"].sum()
-    total_actual = sum(actual_map.values())
+    # Only compare spending in categories that have a budget for this month.
+    budgeted_categories = budgets_df["category"].dropna().unique().tolist()
+    total_actual = sum(
+        amount for category, amount in actual_map.items()
+        if category in budgeted_categories
+    )
     total_remaining = total_budget - total_actual
 
     # ── Summary KPIs ─────────────────────────────────────────────────────────

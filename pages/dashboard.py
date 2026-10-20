@@ -49,8 +49,19 @@ def render(dark: bool = True):
     # Budget remaining (compare with all budgets for month)
     from database.db import get_budgets_for_month
     budgets_df = get_budgets_for_month(current_month)
-    total_budget    = budgets_df["amount"].sum() if not budgets_df.empty else 0
-    remaining_budget = total_budget - total_expense
+    total_budget = budgets_df["amount"].sum() if not budgets_df.empty else 0
+    # Compare budgeted categories only; expenses in categories without a budget
+    # should not make the remaining-budget KPI look artificially worse.
+    if not budgets_df.empty:
+        budgeted_categories = budgets_df["category"].dropna().unique().tolist()
+        budgeted_expenses = get_monthly_category_expenses(current_month)
+        budgeted_expenses = budgeted_expenses[
+            budgeted_expenses["category"].isin(budgeted_categories)
+        ]
+        budgeted_spent = budgeted_expenses["total"].sum()
+    else:
+        budgeted_spent = 0
+    remaining_budget = total_budget - budgeted_spent
 
     # ── KPI Row ──────────────────────────────────────────────────────────────
     cols = st.columns(5)
