@@ -2,6 +2,7 @@
 Reports page — export data, download reports, view transaction history.
 """
 
+import io
 import streamlit as st
 from datetime import datetime, date
 import pandas as pd
@@ -69,11 +70,22 @@ def _render_exports():
         st.markdown("<br>", unsafe_allow_html=True)
         export_month = st.selectbox("Select month", _available_months(), key="csv_month")
         csv_data = generate_monthly_summary_csv(export_month)
+        csv_preview = pd.read_csv(io.StringIO(csv_data))
+        if csv_preview.empty:
+            st.info(f"No transactions found for {export_month}. The CSV will contain column headers only.")
+        else:
+            income_total = csv_preview.loc[csv_preview["type"] == "Income", "amount"].sum()
+            expense_total = csv_preview.loc[csv_preview["type"] == "Expense", "amount"].sum()
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Records", len(csv_preview))
+            m2.metric("Income", f"${income_total:,.2f}")
+            m3.metric("Expenses", f"${expense_total:,.2f}")
+            st.dataframe(csv_preview, use_container_width=True, hide_index=True)
         st.download_button(
             label="📥 Download CSV",
-            data=csv_data,
+            data=csv_data.encode("utf-8-sig"),
             file_name=f"transactions_{export_month}.csv",
-            mime="text/csv",
+            mime="text/csv; charset=utf-8",
             use_container_width=True,
         )
 
@@ -83,24 +95,22 @@ def _render_exports():
 
 
 def _render_report_summary():
-    income_df   = get_all_income()
+    income_df = get_all_income()
     expenses_df = get_all_expenses()
-    budgets_df  = get_all_budgets()
+    budgets_df = get_all_budgets()
 
-    total_income   = income_df["amount"].sum()   if not income_df.empty   else 0
+    total_income = income_df["amount"].sum() if not income_df.empty else 0
     total_expenses = expenses_df["amount"].sum() if not expenses_df.empty else 0
-    savings        = total_income - total_expenses
-    savings_rate   = (savings / total_income * 100) if total_income > 0 else 0
+    savings = total_income - total_expenses
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Income Records",   len(income_df))
-    c2.metric("Expense Records",  len(expenses_df))
-    c3.metric("Budget Entries",   len(budgets_df))
-    c4.metric("Net Savings",      f"${savings:,.2f}")
+    c1.metric("Income Records", len(income_df))
+    c2.metric("Expense Records", len(expenses_df))
+    c3.metric("Budget Entries", len(budgets_df))
+    c4.metric("Net Savings", f"${savings:,.2f}")
 
     st.markdown("---")
 
-    # Trends table
     trends = get_monthly_trends(12)
     if not trends.empty:
         st.markdown("### 12-Month Summary Table")
@@ -109,16 +119,16 @@ def _render_report_summary():
             lambda r: f"{r['savings']/r['income']*100:.1f}%" if r["income"] > 0 else "N/A",
             axis=1,
         )
-        for col in ["income","expenses","savings"]:
+        for col in ["income", "expenses", "savings"]:
             t[col] = t[col].apply(lambda x: f"${x:,.2f}")
-        t.columns = ["Month","Income","Expenses","Savings","Savings Rate"]
+        t.columns = ["Month", "Income", "Expenses", "Savings", "Savings Rate"]
         st.dataframe(t, use_container_width=True, hide_index=True)
 
 
 def _render_full_history(dark: bool):
     st.markdown("### Complete Transaction History")
 
-    income_df   = get_all_income()
+    income_df = get_all_income()
     expenses_df = get_all_expenses()
 
     if income_df.empty and expenses_df.empty:
@@ -130,14 +140,13 @@ def _render_full_history(dark: bool):
         )
         return
 
-    # Combine all transactions
     rows = []
     if not income_df.empty:
         for _, r in income_df.iterrows():
             rows.append({
                 "Date": r["date"], "Type": "Income",
                 "Category/Source": r["source"],
-                "Description": r.get("notes","") or "",
+                "Description": r.get("notes", "") or "",
                 "Amount": r["amount"], "Sign": "+"
             })
     if not expenses_df.empty:
@@ -145,13 +154,12 @@ def _render_full_history(dark: bool):
             rows.append({
                 "Date": r["date"], "Type": "Expense",
                 "Category/Source": r["category"],
-                "Description": r.get("description","") or "",
+                "Description": r.get("description", "") or "",
                 "Amount": r["amount"], "Sign": "-"
             })
 
     combined = pd.DataFrame(rows).sort_values("Date", ascending=False)
 
-    # ── Filters ──────────────────────────────────────────────────────────────
     with st.expander("🔍 Filter Transactions", expanded=False):
         fc1, fc2, fc3, fc4 = st.columns(4)
         with fc1:
@@ -159,8 +167,9 @@ def _render_full_history(dark: bool):
         with fc2:
             search = st.text_input("Search", placeholder="keyword...")
         with fc3:
-            min_d = pd.to_datetime(combined["Date"]).min().date()
-            max_d = pd.to_datetime(combined["Date"]).max().date()
+            combined_dates = pd.to_datetime(combined["Date"], errors="coerce")
+            min_d = combined_dates.min().date()
+            max_d = combined_dates.max().date()
             date_range = st.date_input("Date range", value=(min_d, max_d),
                                        min_value=min_d, max_value=max_d)
         with fc4:
@@ -176,38 +185,41 @@ def _render_full_history(dark: bool):
         )
         filtered = filtered[mask]
     if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-        s, e = date_range
+        start_date, end_date = date_range
+        normalized_dates = pd.to_datetime(filtered["Date"], errors="coerce").dt.date
         filtered = filtered[
-            (filtered["Date"] >= str(s)) & (filtered["Date"] <= str(e))
+            (normalized_dates >= start_date) & (normalized_dates <= end_date)
         ]
     filtered = filtered[filtered["Amount"] >= min_amt]
 
-    # Summary
-    inc_total = filtered[filtered["Type"]=="Income"]["Amount"].sum()
-    exp_total = filtered[filtered["Type"]=="Expense"]["Amount"].sum()
+    inc_total = filtered[filtered["Type"] == "Income"]["Amount"].sum()
+    exp_total = filtered[filtered["Type"] == "Expense"]["Amount"].sum()
     c1, c2, c3 = st.columns(3)
     c1.metric("Filtered Records", len(filtered))
-    c2.metric("Income",  f"${inc_total:,.2f}")
-    c3.metric("Expenses",f"${exp_total:,.2f}")
+    c2.metric("Income", f"${inc_total:,.2f}")
+    c3.metric("Expenses", f"${exp_total:,.2f}")
 
-    # Display
     display = filtered.drop(columns=["Sign"]).copy()
     display["Amount"] = display.apply(
-        lambda r: f"+${r['Amount']:,.2f}" if r["Type"]=="Income" else f"-${r['Amount']:,.2f}",
+        lambda r: f"+${r['Amount']:,.2f}" if r["Type"] == "Income" else f"-${r['Amount']:,.2f}",
         axis=1,
     )
     st.dataframe(display, use_container_width=True, hide_index=True)
 
     csv = filtered.drop(columns=["Sign"]).to_csv(index=False)
-    st.download_button("📥 Export filtered as CSV", csv,
-                       f"transactions_filtered_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv")
+    st.download_button(
+        "📥 Export filtered as CSV",
+        csv.encode("utf-8-sig"),
+        f"transactions_filtered_{datetime.now().strftime('%Y%m%d')}.csv",
+        "text/csv; charset=utf-8",
+    )
 
 
 def _available_months() -> list:
     now = datetime.now()
     months = []
     for i in range(24):
-        y = now.year - (1 if now.month - i <= 0 else 0)
-        m = (now.month - i - 1) % 12 + 1
-        months.append(date(y, m, 1).strftime("%Y-%m"))
+        year = now.year - (1 if now.month - i <= 0 else 0)
+        month = (now.month - i - 1) % 12 + 1
+        months.append(date(year, month, 1).strftime("%Y-%m"))
     return months
