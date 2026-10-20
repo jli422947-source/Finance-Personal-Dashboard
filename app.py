@@ -37,7 +37,35 @@ def load_css():
 
 
 load_css()
+def _render_sidebar_stats():
+    """Show quick summary stats at the bottom of the sidebar."""
+    from datetime import datetime
+    from database.db import get_monthly_summary
 
+    current_month = datetime.now().strftime("%Y-%m")
+    try:
+        summary = get_monthly_summary(current_month)
+        st.markdown(
+            '<div style="font-size:0.7rem;letter-spacing:0.12em;text-transform:uppercase;'
+            'color:#64748B;font-weight:600;margin-bottom:8px">This Month</div>',
+            unsafe_allow_html=True,
+        )
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Income",  f"${summary['income']:,.0f}")
+            st.metric("Savings", f"${summary['savings']:,.0f}")
+        with col2:
+            st.metric("Spent",   f"${summary['expenses']:,.0f}")
+            st.metric("Rate",    f"{summary['savings_rate']:.0f}%")
+    except Exception:
+        pass
+
+    st.markdown("---")
+    st.markdown(
+        '<div style="font-size:0.7rem;color:#4B5563;text-align:center">'
+        "FinanceFlow v1.0<br>Built with ❤️ &amp; Streamlit</div>",
+        unsafe_allow_html=True,
+    )
 
 # ── Session state defaults ────────────────────────────────────────────────────
 if "dark_mode" not in st.session_state:
@@ -112,35 +140,7 @@ with st.sidebar:
     _render_sidebar_stats()
 
 
-def _render_sidebar_stats():
-    """Show quick summary stats at the bottom of the sidebar."""
-    from datetime import datetime
-    from database.db import get_monthly_summary
 
-    current_month = datetime.now().strftime("%Y-%m")
-    try:
-        summary = get_monthly_summary(current_month)
-        st.markdown(
-            '<div style="font-size:0.7rem;letter-spacing:0.12em;text-transform:uppercase;'
-            'color:#64748B;font-weight:600;margin-bottom:8px">This Month</div>',
-            unsafe_allow_html=True,
-        )
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Income",  f"${summary['income']:,.0f}")
-            st.metric("Savings", f"${summary['savings']:,.0f}")
-        with col2:
-            st.metric("Spent",   f"${summary['expenses']:,.0f}")
-            st.metric("Rate",    f"{summary['savings_rate']:.0f}%")
-    except Exception:
-        pass
-
-    st.markdown("---")
-    st.markdown(
-        '<div style="font-size:0.7rem;color:#4B5563;text-align:center">'
-        "FinanceFlow v1.0<br>Built with ❤️ &amp; Streamlit</div>",
-        unsafe_allow_html=True,
-    )
 
 
 # ── Page routing ──────────────────────────────────────────────────────────────
