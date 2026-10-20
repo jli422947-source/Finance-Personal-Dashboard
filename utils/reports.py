@@ -21,56 +21,50 @@ def generate_excel_report() -> bytes:
     """
     buffer = io.BytesIO()
 
-    income_df   = get_all_income()
+    income_df = get_all_income()
     expenses_df = get_all_expenses()
-    budgets_df  = get_all_budgets()
-    trends_df   = get_monthly_trends(12)
+    budgets_df = get_all_budgets()
+    trends_df = get_monthly_trends(12)
 
-    # ── Summary ───────────────────────────────────────────────────────────────
-    total_income   = income_df["amount"].sum()   if not income_df.empty   else 0
+    total_income = income_df["amount"].sum() if not income_df.empty else 0
     total_expenses = expenses_df["amount"].sum() if not expenses_df.empty else 0
-    savings        = total_income - total_expenses
-    savings_rate   = (savings / total_income * 100) if total_income > 0 else 0
+    savings = total_income - total_expenses
+    savings_rate = (savings / total_income * 100) if total_income > 0 else 0
 
-    summary_data = {
-        "Metric":  ["Total Income",  "Total Expenses", "Net Savings", "Savings Rate",
-                    "Report Generated"],
-        "Value":   [f"${total_income:,.2f}", f"${total_expenses:,.2f}",
-                    f"${savings:,.2f}", f"{savings_rate:.1f}%",
-                    datetime.now().strftime("%Y-%m-%d %H:%M")],
-    }
-    summary_df = pd.DataFrame(summary_data)
+    summary_df = pd.DataFrame({
+        "Metric": ["Total Income", "Total Expenses", "Net Savings", "Savings Rate", "Report Generated"],
+        "Value": [
+            f"${total_income:,.2f}", f"${total_expenses:,.2f}",
+            f"${savings:,.2f}", f"{savings_rate:.1f}%",
+            datetime.now().strftime("%Y-%m-%d %H:%M"),
+        ],
+    })
 
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        # Summary
         summary_df.to_excel(writer, sheet_name="Summary", index=False)
         _auto_width(writer, "Summary", summary_df)
 
-        # Income
         if not income_df.empty:
-            income_out = income_df[["date","amount","source","notes"]].copy()
-            income_out.columns = ["Date","Amount ($)","Source","Notes"]
+            income_out = income_df[["date", "amount", "source", "notes"]].copy()
+            income_out.columns = ["Date", "Amount ($)", "Source", "Notes"]
             income_out.to_excel(writer, sheet_name="Income", index=False)
             _auto_width(writer, "Income", income_out)
 
-        # Expenses
         if not expenses_df.empty:
-            exp_out = expenses_df[["date","amount","category","description"]].copy()
-            exp_out.columns = ["Date","Amount ($)","Category","Description"]
+            exp_out = expenses_df[["date", "amount", "category", "description"]].copy()
+            exp_out.columns = ["Date", "Amount ($)", "Category", "Description"]
             exp_out.to_excel(writer, sheet_name="Expenses", index=False)
             _auto_width(writer, "Expenses", exp_out)
 
-        # Budgets
         if not budgets_df.empty:
-            bud_out = budgets_df[["month","category","amount"]].copy()
-            bud_out.columns = ["Month","Category","Budget ($)"]
+            bud_out = budgets_df[["month", "category", "amount"]].copy()
+            bud_out.columns = ["Month", "Category", "Budget ($)"]
             bud_out.to_excel(writer, sheet_name="Budgets", index=False)
             _auto_width(writer, "Budgets", bud_out)
 
-        # Monthly Trends
         if not trends_df.empty:
             trend_out = trends_df.copy()
-            trend_out.columns = ["Month","Income ($)","Expenses ($)","Savings ($)"]
+            trend_out.columns = ["Month", "Income ($)", "Expenses ($)", "Savings ($)"]
             trend_out.to_excel(writer, sheet_name="Monthly Trends", index=False)
             _auto_width(writer, "Monthly Trends", trend_out)
 
@@ -85,42 +79,49 @@ def _auto_width(writer: pd.ExcelWriter, sheet_name: str, df: pd.DataFrame):
             len(str(col)),
             df[col].astype(str).map(len).max() if not df.empty else 0,
         )
-        ws.column_dimensions[
-            ws.cell(row=1, column=idx).column_letter
-        ].width = min(max_len + 4, 50)
+        ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = min(max_len + 4, 50)
 
 
 def generate_monthly_summary_csv(month: str) -> str:
-    """Export a month's income + expenses as CSV string."""
-    income_df   = get_all_income()
+    """Export one month's income and expenses with a stable CSV schema.
+
+    Dates are normalized before filtering, and the output always contains a
+    header row—even when the selected month has no transactions.
+    """
+    columns = ["date", "type", "category_or_source", "amount", "description"]
+    income_df = get_all_income()
     expenses_df = get_all_expenses()
+    frames = []
 
     if not income_df.empty:
-        income_df = income_df[
-            income_df["date"].str.startswith(month)
-        ].copy()
-        income_df["type"] = "Income"
-        income_df.rename(columns={"source": "category_or_source"}, inplace=True)
+        income_df = income_df.copy()
+        income_df["date"] = pd.to_datetime(income_df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+        income_df = income_df[income_df["date"].str.startswith(month, na=False)].copy()
+        if not income_df.empty:
+            frames.append(pd.DataFrame({
+                "date": income_df["date"],
+                "type": "Income",
+                "category_or_source": income_df["source"],
+                "amount": income_df["amount"],
+                "description": income_df["notes"].fillna("") if "notes" in income_df else "",
+            }))
 
     if not expenses_df.empty:
-        expenses_df = expenses_df[
-            expenses_df["date"].str.startswith(month)
-        ].copy()
-        expenses_df["type"] = "Expense"
-        expenses_df.rename(columns={"category": "category_or_source"}, inplace=True)
+        expenses_df = expenses_df.copy()
+        expenses_df["date"] = pd.to_datetime(expenses_df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+        expenses_df = expenses_df[expenses_df["date"].str.startswith(month, na=False)].copy()
+        if not expenses_df.empty:
+            frames.append(pd.DataFrame({
+                "date": expenses_df["date"],
+                "type": "Expense",
+                "category_or_source": expenses_df["category"],
+                "amount": expenses_df["amount"],
+                "description": expenses_df["description"].fillna("") if "description" in expenses_df else "",
+            }))
 
-    combined = pd.concat(
-        [
-            income_df[["date","amount","type","category_or_source"]]
-            if not income_df.empty else pd.DataFrame(),
-            expenses_df[["date","amount","type","category_or_source"]]
-            if not expenses_df.empty else pd.DataFrame(),
-        ],
-        ignore_index=True,
-    )
+    if not frames:
+        return pd.DataFrame(columns=columns).to_csv(index=False, lineterminator="\n")
 
-    if combined.empty:
-        return "No data for selected month."
-
-    combined = combined.sort_values("date")
-    return combined.to_csv(index=False)
+    combined = pd.concat(frames, ignore_index=True)
+    combined = combined[columns].sort_values(["date", "type", "category_or_source"], kind="stable")
+    return combined.to_csv(index=False, lineterminator="\n")
