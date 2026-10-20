@@ -82,6 +82,7 @@ PAGES = {
     "Budgets":    {"icon": "🎯", "description": "Set limits"},
     "Analytics":  {"icon": "📈", "description": "Charts & insights"},
     "Reports":    {"icon": "📄", "description": "Export & download"},
+    "Import CSV": {"icon": "📥", "description": "批量导入交易记录"},
 }
 
 with st.sidebar:
@@ -181,4 +182,7 @@ elif page == "Analytics":
     render(dark)
 elif page == "Reports":
     from pages.reports import render
+    render(dark)
+elif page == "Import CSV":
+    from pages.import_data import render
     render(dark)
