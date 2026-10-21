@@ -156,8 +156,10 @@ def _render_history(dark: bool):
 
     # ── Delete ────────────────────────────────────────────────────────────────
     with st.expander("🗑️ Delete a Record"):
+        st.warning("Deletion is permanent. Export a CSV backup before deleting a transaction.")
         del_id = st.number_input("Enter Record ID to delete", min_value=1, step=1, key="del_income_id")
-        if st.button("Delete", key="del_income_btn"):
+        confirm_delete = st.checkbox("I understand this permanently deletes the selected income.", key="confirm_del_income")
+        if st.button("Permanently Delete", key="del_income_btn", disabled=not confirm_delete):
             if int(del_id) in filtered["id"].values:
                 if delete_income(int(del_id)):
                     st.success(f"Record #{int(del_id)} deleted.")

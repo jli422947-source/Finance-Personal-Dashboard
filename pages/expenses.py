@@ -131,9 +131,16 @@ def _render_history(dark: bool):
             search = st.text_input("Search description", placeholder="Search...")
         with fcol2:
             min_d = pd.to_datetime(df["date"]).min().date()
-            max_d = pd.to_datetime(df["date"]).max().date()
-            date_range = st.date_input("Date range", value=(min_d, max_d),
-                                       min_value=min_d, max_value=max_d)
+            latest_record_date = pd.to_datetime(df["date"]).max().date()
+            # Allow reviewing calendar dates after the latest transaction.
+            max_d = max(latest_record_date, date.today())
+            date_range = st.date_input(
+                "Date range",
+                value=(min_d, max_d),
+                min_value=min_d,
+                max_value=max_d,
+                help="The end date can extend beyond the latest transaction up to today.",
+            )
         with fcol3:
             cat_options = ["All"] + CATEGORIES
             cat_filter = st.selectbox("Category", cat_options)
@@ -175,8 +182,10 @@ def _render_history(dark: bool):
 
     # ── Delete ────────────────────────────────────────────────────────────────
     with st.expander("🗑️ Delete a Record"):
+        st.warning("Deletion is permanent. Export a CSV backup before deleting a transaction.")
         del_id = st.number_input("Enter Record ID to delete", min_value=1, step=1, key="del_exp_id")
-        if st.button("Delete", key="del_exp_btn"):
+        confirm_delete = st.checkbox("I understand this permanently deletes the selected expense.", key="confirm_del_exp")
+        if st.button("Permanently Delete", key="del_exp_btn", disabled=not confirm_delete):
             if int(del_id) in filtered["id"].values:
                 if delete_expense(int(del_id)):
                     st.success(f"Record #{int(del_id)} deleted.")
