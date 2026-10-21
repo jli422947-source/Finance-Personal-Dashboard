@@ -66,6 +66,8 @@ def render(dark=True):
     old_expenses = get_all_expenses()
     income_keys = set()
     expense_keys = set()
+    income_core_keys = set()
+    expense_core_keys = set()
 
     def normalized_date(value):
         parsed = pd.to_datetime(value, errors="coerce")
@@ -77,25 +79,42 @@ def render(dark=True):
              round(float(row["amount"]), 2), str(row.get("notes", "") or "").strip())
             for _, row in old_income.iterrows()
         }
+        income_core_keys = {(key[0], key[1], key[2]) for key in income_keys}
     if not old_expenses.empty:
         expense_keys = {
             (normalized_date(row["date"]), str(row["category"]).strip(),
              round(float(row["amount"]), 2), str(row.get("description", "") or "").strip())
             for _, row in old_expenses.iterrows()
         }
+        expense_core_keys = {(key[0], key[1], key[2]) for key in expense_keys}
 
     new_rows = []
+    possible_duplicates = []
     skipped = 0
     for _, row in df.iterrows():
         key = (normalized_date(row["date"]), row["category"].strip(),
                round(float(row["amount"]), 2), row["description"].strip())
         existing = income_keys if row["type"] == "income" else expense_keys
+        core_existing = income_core_keys if row["type"] == "income" else expense_core_keys
+        core_key = key[:3]
         if key in existing:
             skipped += 1
         else:
             new_rows.append(row)
+            if core_key in core_existing:
+                possible_duplicates.append({
+                    "date": key[0], "type": row["type"].title(),
+                    "category/source": key[1], "amount": key[2],
+                    "existing description differs": key[3] or "(empty)",
+                })
 
     st.write(f"待导入：{len(new_rows)} 条；与现有记录完全匹配、将跳过：{skipped} 条。")
+    if possible_duplicates:
+        st.warning(
+            f"发现 {len(possible_duplicates)} 条可能重复的交易：日期、类别/来源和金额与现有记录相同，"
+            "但描述不同。系统不会自动跳过这些记录，请先检查后再确认导入。"
+        )
+        st.dataframe(pd.DataFrame(possible_duplicates), use_container_width=True, hide_index=True)
     confirmed = st.checkbox("我已检查预览，确认将这些记录写入当前 FinanceFlow 数据库。")
 
     if st.button("开始导入", type="primary", disabled=(not confirmed or not new_rows)):
