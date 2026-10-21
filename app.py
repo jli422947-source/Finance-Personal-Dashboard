@@ -164,6 +164,21 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ── Always-visible navigation fallback ───────────────────────────────────────
+# Keep page switching available even when the Streamlit sidebar is collapsed.
+st.markdown("**栏目导航 / Navigation**")
+nav_columns = st.columns(len(PAGES))
+for nav_column, (page_name, meta) in zip(nav_columns, PAGES.items()):
+    with nav_column:
+        if st.button(
+            f"{meta['icon']} {page_name}",
+            key=f"main_nav_{page_name}",
+            use_container_width=True,
+            type="primary" if page == page_name else "secondary",
+        ):
+            st.session_state["current_page"] = page_name
+            st.rerun()
+
 # Import and render the selected page
 if page == "Dashboard":
     from pages.dashboard import render
