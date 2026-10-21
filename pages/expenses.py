@@ -5,6 +5,7 @@ Add, view, filter and delete expense records.
 
 import streamlit as st
 from datetime import date, datetime
+import calendar
 import pandas as pd
 
 from database.db import (
@@ -132,14 +133,17 @@ def _render_history(dark: bool):
         with fcol2:
             min_d = pd.to_datetime(df["date"]).min().date()
             latest_record_date = pd.to_datetime(df["date"]).max().date()
-            # Allow reviewing calendar dates after the latest transaction.
-            max_d = max(latest_record_date, date.today())
+            # Allow selecting through the end of the current calendar month,
+            # even if the hosted server clock or latest transaction is earlier.
+            today = date.today()
+            month_end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+            max_d = max(latest_record_date, month_end)
             date_range = st.date_input(
                 "Date range",
                 value=(min_d, max_d),
                 min_value=min_d,
                 max_value=max_d,
-                help="The end date can extend beyond the latest transaction up to today.",
+                help="The end date can extend through the end of the current month.",
             )
         with fcol3:
             cat_options = ["All"] + CATEGORIES
