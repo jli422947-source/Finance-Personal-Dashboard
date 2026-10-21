@@ -26,7 +26,9 @@ html, body, [data-testid="stAppViewContainer"] {
 /* ── Hide default Streamlit header/footer ── */
 #MainMenu { visibility: hidden; }
 footer    { visibility: hidden; }
-header    { visibility: hidden; }
+/* Keep the Streamlit header available so users can reopen the sidebar navigation. */
+[data-testid="stHeader"] { background: transparent !important; }
+[data-testid="stToolbar"] { visibility: hidden; }
 
 /* ── KPI Card ── */
 .kpi-card {
